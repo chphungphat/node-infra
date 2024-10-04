@@ -1,0 +1,1 @@
+{"version":3,"file":"factory.js","sourceRoot":"","sources":["../../../src/helpers/logger/factory.ts"],"names":[],"mappings":";;;AAAA,6DAAyD;AAEzD,MAAa,aAAa;IACxB,MAAM,CAAC,SAAS,CAAC,MAAgB;QAC/B,MAAM,MAAM,GAAG,IAAI,sCAAiB,EAAE,CAAC;QACvC,MAAM,CAAC,SAAS,CAAC,MAAM,CAAC,IAAI,CAAC,GAAG,CAAC,CAAC,CAAC;QACnC,OAAO,MAAM,CAAC;IAChB,CAAC;CACF;AAND,sCAMC"}
