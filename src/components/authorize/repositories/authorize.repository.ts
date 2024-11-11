@@ -1,10 +1,10 @@
 import { BaseDataSource } from '@/base/base.datasource';
 import { BaseTzEntity } from '@/base/base.model';
 import { TzCrudRepository, ViewRepository } from '@/base/repositories';
-import { EntityClassType, IdType } from '@/common';
+import { EntityClassType, EntityRelationType, IdType } from '@/common';
 import { getError } from '@/utilities';
 import { Getter, inject } from '@loopback/core';
-import { HasManyThroughRepositoryFactory, repository } from '@loopback/repository';
+import { AnyType, HasManyThroughRepositoryFactory, repository } from '@loopback/repository';
 
 import { Permission, PermissionMapping, Role, UserRole, ViewAuthorizePolicy } from '../models';
 
@@ -13,7 +13,10 @@ import isEmpty from 'lodash/isEmpty';
 const DS_AUTHORIZE = process.env.APP_ENV_APPLICATION_DS_AUTHORIZE;
 
 // ----------------------------------------------------------------------------
-export abstract class AbstractAuthorizeRepository<T extends BaseTzEntity> extends TzCrudRepository<T> {
+export abstract class AbstractAuthorizeRepository<
+  T extends BaseTzEntity,
+  E extends EntityRelationType = AnyType,
+> extends TzCrudRepository<T, E> {
   constructor(entityClass: EntityClassType<T>, dataSource: BaseDataSource) {
     if (!DS_AUTHORIZE || isEmpty(DS_AUTHORIZE)) {
       throw getError({
