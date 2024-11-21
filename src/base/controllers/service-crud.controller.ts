@@ -1,13 +1,5 @@
 import { Getter, inject } from '@loopback/core';
-import { CrudRestControllerOptions } from '@loopback/rest-crud';
-import {
-  Count,
-  CountSchema,
-  DataObject,
-  Filter,
-  FilterExcludingWhere,
-  Where,
-} from '@loopback/repository';
+import { Count, CountSchema, Filter, FilterExcludingWhere, Where } from '@loopback/repository';
 import {
   del,
   get,
@@ -19,20 +11,23 @@ import {
   post,
   put,
   requestBody,
+  RestBindings,
   SchemaRef,
+  RequestContext,
 } from '@loopback/rest';
+import { CrudRestControllerOptions } from '@loopback/rest-crud';
 
-import { BaseIdEntity, BaseTzEntity, AbstractTzRepository } from './../';
-import { EntityRelationType, IController, IdType } from '@/common/types';
 import { App } from '@/common';
-import { applyLimit, getIdSchema } from './common';
-import { SecurityBindings } from '@loopback/security';
+import { EntityRelationType, IController, ICrudService, IdType } from '@/common/types';
 import { IJWTTokenPayload } from '@/components/authenticate/common/types';
+import { SecurityBindings } from '@loopback/security';
+import { BaseIdEntity, BaseTzEntity } from './../';
+import { applyLimit, getIdSchema } from './common';
 
 // --------------------------------------------------------------------------------------------------------------
-export interface ICrudControllerOptions<E extends BaseIdEntity> {
+export interface IServiceCrudControllerOptions<E extends BaseIdEntity> {
   entity: typeof BaseIdEntity & { prototype: E };
-  repository: { name: string };
+  service: { name: string };
   controller: CrudRestControllerOptions & { defaultLimit?: number };
   schema?: {
     find?: SchemaRef;
@@ -47,17 +42,21 @@ export interface ICrudControllerOptions<E extends BaseIdEntity> {
     replaceById?: SchemaRef;
     deleteById?: SchemaRef;
   };
-  doInjectCurrentUser?: boolean;
+  options?: {
+    doInjectCurrentUser?: boolean;
+  };
 }
 
 // --------------------------------------------------------------------------------------------------------------
-export const defineCrudController = <E extends BaseTzEntity>(opts: ICrudControllerOptions<E>) => {
+export const defineServiceCrudController = <E extends BaseTzEntity>(
+  opts: IServiceCrudControllerOptions<E>,
+) => {
   const {
     entity: entityOptions,
-    repository: repositoryOptions,
+    service: serviceOptions,
     controller: controllerOptions,
     schema: schemaOptions,
-    doInjectCurrentUser,
+    options,
   } = opts;
 
   const idPathParam: ParameterObject = {
@@ -67,12 +66,36 @@ export const defineCrudController = <E extends BaseTzEntity>(opts: ICrudControll
   };
 
   class ReadController implements IController {
-    repository: AbstractTzRepository<E, EntityRelationType>;
+    requestContext: RequestContext;
+    service: ICrudService<E>;
+    getCurrentUser?: Getter<IJWTTokenPayload>;
+
     defaultLimit: number;
 
-    constructor(repository: AbstractTzRepository<E, EntityRelationType>) {
-      this.repository = repository;
+    constructor(
+      requestContext: RequestContext,
+      service: ICrudService<E>,
+      getCurrentUser?: Getter<IJWTTokenPayload>,
+    ) {
+      this.service = service;
+      this.getCurrentUser = getCurrentUser;
+      this.requestContext = requestContext;
       this.defaultLimit = controllerOptions?.defaultLimit ?? App.DEFAULT_QUERY_LIMIT;
+    }
+
+    // ----------------------------------------------------------------------------------------------------------
+    _getContextUser() {
+      return new Promise<{
+        userId: IdType;
+        roles: Array<{ id: IdType; identifier: string; priority: number }>;
+      } | null>((resolve, reject) => {
+        if (!this.getCurrentUser) {
+          resolve(null);
+          return;
+        }
+
+        this.getCurrentUser().then(resolve).catch(reject);
+      });
     }
 
     // ----------------------------------------------------------------------------------------------------------
@@ -93,8 +116,18 @@ export const defineCrudController = <E extends BaseTzEntity>(opts: ICrudControll
         },
       },
     })
-    find(@param.filter(entityOptions) filter?: Filter<E>): Promise<(E & EntityRelationType)[]> {
-      return this.repository.find(applyLimit(filter));
+    find(@param.filter(entityOptions) filter?: Filter<E>): Promise<Array<E & EntityRelationType>> {
+      return new Promise<Array<E & EntityRelationType>>((resolve, reject) => {
+        this._getContextUser().then(currentUser => {
+          this.service
+            .find(applyLimit(filter), {
+              currentUser,
+              requestContext: this.requestContext,
+            })
+            .then(resolve)
+            .catch(reject);
+        });
+      });
     }
 
     // ----------------------------------------------------------------------------------------------------------
@@ -117,7 +150,17 @@ export const defineCrudController = <E extends BaseTzEntity>(opts: ICrudControll
       @param.query.object('filter', getFilterSchemaFor(entityOptions, { exclude: 'where' }))
       filter?: FilterExcludingWhere<E>,
     ): Promise<E & EntityRelationType> {
-      return this.repository.findById(id, applyLimit(filter));
+      return new Promise<E & EntityRelationType>((resolve, reject) => {
+        this._getContextUser().then(currentUser => {
+          this.service
+            .findById(id, applyLimit(filter), {
+              currentUser,
+              requestContext: this.requestContext,
+            })
+            .then(resolve)
+            .catch(reject);
+        });
+      });
     }
 
     // ----------------------------------------------------------------------------------------------------------
@@ -139,7 +182,17 @@ export const defineCrudController = <E extends BaseTzEntity>(opts: ICrudControll
       @param.query.object('filter', getFilterSchemaFor(entityOptions))
       filter?: Filter<E>,
     ): Promise<(E & EntityRelationType) | null> {
-      return this.repository.findOne(filter);
+      return new Promise<(E & EntityRelationType) | null>((resolve, reject) => {
+        this._getContextUser().then(currentUser => {
+          this.service
+            .findOne(applyLimit(filter), {
+              currentUser,
+              requestContext: this.requestContext,
+            })
+            .then(resolve)
+            .catch(reject);
+        });
+      });
     }
 
     // ----------------------------------------------------------------------------------------------------------
@@ -156,42 +209,41 @@ export const defineCrudController = <E extends BaseTzEntity>(opts: ICrudControll
       },
     })
     count(@param.where(entityOptions) where?: Where<E>): Promise<Count> {
-      return this.repository.count(where);
+      return new Promise<Count>((resolve, reject) => {
+        this._getContextUser().then(currentUser => {
+          this.service
+            .count(where ?? {}, {
+              currentUser,
+              requestContext: this.requestContext,
+            })
+            .then(resolve)
+            .catch(reject);
+        });
+      });
     }
   }
 
   if (controllerOptions.readonly) {
-    if (repositoryOptions?.name) {
-      inject(`repositories.${repositoryOptions.name}`)(ReadController, undefined, 0);
+    inject(RestBindings.Http.CONTEXT)(ReadController, undefined, 0);
+
+    if (serviceOptions?.name) {
+      inject(`services.${serviceOptions.name}`)(ReadController, undefined, 1);
+    }
+
+    if (options?.doInjectCurrentUser) {
+      inject.getter(SecurityBindings.USER)(ReadController, undefined, 2);
     }
 
     return ReadController;
   }
 
   class CrudController extends ReadController {
-    getCurrentUser?: Getter<IJWTTokenPayload>;
-
     constructor(
-      repository: AbstractTzRepository<E, EntityRelationType>,
+      requestContext: RequestContext,
+      service: ICrudService<E>,
       getCurrentUser?: Getter<IJWTTokenPayload>,
     ) {
-      super(repository);
-      this.getCurrentUser = getCurrentUser;
-    }
-
-    // ----------------------------------------------------------------------------------------------------------
-    _getContextUser() {
-      return new Promise<{
-        userId: IdType;
-        roles: Array<{ id: IdType; identifier: string; priority: number }>;
-      } | null>((resolve, reject) => {
-        if (!this.getCurrentUser) {
-          resolve(null);
-          return;
-        }
-
-        this.getCurrentUser().then(resolve).catch(reject);
-      });
+      super(requestContext, service, getCurrentUser);
     }
 
     // ----------------------------------------------------------------------------------------------------------
@@ -225,9 +277,10 @@ export const defineCrudController = <E extends BaseTzEntity>(opts: ICrudControll
       return new Promise<E>((resolve, reject) => {
         this._getContextUser()
           .then(currentUser => {
-            this.repository
-              .create(data as DataObject<E>, {
-                authorId: currentUser?.userId,
+            this.service
+              .create(data, {
+                currentUser,
+                requestContext: this.requestContext,
               })
               .then(resolve)
               .catch(reject);
@@ -267,14 +320,17 @@ export const defineCrudController = <E extends BaseTzEntity>(opts: ICrudControll
       where?: Where<E>,
     ): Promise<Count> {
       return new Promise<Count>((resolve, reject) => {
-        this._getContextUser().then(currentUser => {
-          this.repository
-            .updateAll(data as DataObject<E>, where, {
-              authorId: currentUser?.userId,
-            })
-            .then(resolve)
-            .catch(reject);
-        });
+        this._getContextUser()
+          .then(currentUser => {
+            this.service
+              .updateAll(data, where ?? {}, {
+                currentUser,
+                requestContext: this.requestContext,
+              })
+              .then(resolve)
+              .catch(reject);
+          })
+          .catch(reject);
       });
     }
 
@@ -312,14 +368,17 @@ export const defineCrudController = <E extends BaseTzEntity>(opts: ICrudControll
       data: Partial<E>,
     ): Promise<E> {
       return new Promise<E>((resolve, reject) => {
-        this._getContextUser().then(currentUser => {
-          this.repository
-            .updateWithReturn(id, data as DataObject<E>, {
-              authorId: currentUser?.userId,
-            })
-            .then(resolve)
-            .catch(reject);
-        });
+        this._getContextUser()
+          .then(currentUser => {
+            this.service
+              .updateWithReturn(id, data, {
+                currentUser,
+                requestContext: this.requestContext,
+              })
+              .then(resolve)
+              .catch(reject);
+          })
+          .catch(reject);
       });
     }
 
@@ -329,7 +388,7 @@ export const defineCrudController = <E extends BaseTzEntity>(opts: ICrudControll
         '204': { description: `${entityOptions.name} was replaced` },
       },
     })
-    async replaceById(
+    replaceById(
       @param(idPathParam) id: IdType,
       @requestBody({
         content: {
@@ -345,16 +404,17 @@ export const defineCrudController = <E extends BaseTzEntity>(opts: ICrudControll
       data: E,
     ): Promise<E> {
       return new Promise<E>((resolve, reject) => {
-        this._getContextUser().then(currentUser => {
-          this.repository
-            .replaceById(id, data, {
-              authorId: currentUser?.userId,
-            })
-            .then(() => {
-              resolve({ ...data, id });
-            })
-            .catch(reject);
-        });
+        this._getContextUser()
+          .then(currentUser => {
+            this.service
+              .replaceById(id, data, {
+                currentUser,
+                requestContext: this.requestContext,
+              })
+              .then(resolve)
+              .catch(reject);
+          })
+          .catch(reject);
       });
     }
 
@@ -377,23 +437,30 @@ export const defineCrudController = <E extends BaseTzEntity>(opts: ICrudControll
       },
     })
     deleteById(@param(idPathParam) id: IdType): Promise<{ id: IdType }> {
-      return new Promise((resolve, reject) => {
-        this.repository
-          .deleteById(id)
-          .then(() => {
-            resolve({ id });
+      return new Promise<{ id: IdType }>((resolve, reject) => {
+        this._getContextUser()
+          .then(currentUser => {
+            this.service
+              .deleteById(id, {
+                currentUser,
+                requestContext: this.requestContext,
+              })
+              .then(resolve)
+              .catch(reject);
           })
           .catch(reject);
       });
     }
   }
 
-  if (repositoryOptions?.name) {
-    inject(`repositories.${repositoryOptions.name}`)(CrudController, undefined, 0);
+  inject(RestBindings.Http.CONTEXT)(CrudController, undefined, 0);
+
+  if (serviceOptions?.name) {
+    inject(`services.${serviceOptions.name}`)(CrudController, undefined, 1);
   }
 
-  if (doInjectCurrentUser) {
-    inject.getter(SecurityBindings.USER, { optional: true })(CrudController, undefined, 1);
+  if (options?.doInjectCurrentUser) {
+    inject.getter(SecurityBindings.USER)(CrudController, undefined, 2);
   }
 
   return CrudController;
