@@ -33,7 +33,12 @@ export abstract class AbstractAuthorizeRepository<
 
 // ----------------------------------------------------------------------------
 export class RoleRepository extends AbstractAuthorizeRepository<Role> {
-  public readonly permissions: HasManyThroughRepositoryFactory<Permission, IdType, PermissionMapping, IdType>;
+  public readonly permissions: HasManyThroughRepositoryFactory<
+    Permission,
+    IdType,
+    PermissionMapping,
+    IdType
+  >;
 
   constructor(
     @inject(`datasources.${DS_AUTHORIZE}`) dataSource: BaseDataSource,
