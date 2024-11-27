@@ -3,37 +3,52 @@ import Redis from 'ioredis';
 import { TBullQueueRole } from '@/common/types';
 import { BaseHelper } from '@/base/base.helper';
 
-interface IBullMQOptions {
+interface IBullMQOptions<TQueueElement = any, TQueueResult = any> {
   queueName: string;
   identifier: string;
   role: TBullQueueRole;
   connection: Redis;
+
   numberOfWorker?: number;
-  onWorkerData?: (job: Job) => Promise<any>;
-  onWorkerDataCompleted?: (job: Job, result: any) => Promise<void>;
-  onWorkerDataFail?: (job: Job | undefined, error: Error) => Promise<void>;
+  lockDuration?: number;
+
+  onWorkerData?: (job: Job<TQueueElement, TQueueResult>) => Promise<any>;
+  onWorkerDataCompleted?: (job: Job<TQueueElement, TQueueResult>, result: any) => Promise<void>;
+  onWorkerDataFail?: (
+    job: Job<TQueueElement, TQueueResult> | undefined,
+    error: Error,
+  ) => Promise<void>;
 }
 
-export class BullMQHelper extends BaseHelper {
+export class BullMQHelper<TQueueElement = any, TQueueResult = any> extends BaseHelper {
   private queueName: string;
   private role: 'queue' | 'worker';
   private connection: Redis;
 
-  queue: Queue;
-  worker: Worker;
+  queue: Queue<TQueueElement, TQueueResult>;
+  worker: Worker<TQueueElement, TQueueResult>;
 
   private numberOfWorker = 1;
-  private onWorkerData?: (job: Job) => Promise<any>;
-  private onWorkerDataCompleted?: (job: Job, result: any) => Promise<void>;
-  private onWorkerDataFail?: (job: Job | undefined, error: Error) => Promise<void>;
+  private lockDuration = 90 * 60 * 1000;
 
-  constructor(options: IBullMQOptions) {
+  private onWorkerData?: (job: Job<TQueueElement, TQueueResult>) => Promise<any>;
+  private onWorkerDataCompleted?: (
+    job: Job<TQueueElement, TQueueResult>,
+    result: any,
+  ) => Promise<void>;
+  private onWorkerDataFail?: (
+    job: Job<TQueueElement, TQueueResult> | undefined,
+    error: Error,
+  ) => Promise<void>;
+
+  constructor(options: IBullMQOptions<TQueueElement, TQueueResult>) {
     super({ scope: BullMQHelper.name, identifier: options.identifier });
     const {
       queueName,
       connection,
       role,
       numberOfWorker = 1,
+      lockDuration = 90 * 60 * 1000,
       onWorkerData,
       onWorkerDataCompleted,
       onWorkerDataFail,
@@ -42,7 +57,10 @@ export class BullMQHelper extends BaseHelper {
     this.queueName = queueName;
     this.role = role;
     this.connection = connection;
+
     this.numberOfWorker = numberOfWorker;
+    this.lockDuration = lockDuration;
+
     this.onWorkerData = onWorkerData;
     this.onWorkerDataCompleted = onWorkerDataCompleted;
     this.onWorkerDataFail = onWorkerDataFail;
@@ -50,8 +68,8 @@ export class BullMQHelper extends BaseHelper {
     this.configure();
   }
 
-  static newInstance(opts: IBullMQOptions) {
-    return new BullMQHelper(opts);
+  static newInstance<T = any, R = any>(opts: IBullMQOptions<T, R>) {
+    return new BullMQHelper<T, R>(opts);
   }
 
   configureQueue() {
@@ -60,7 +78,7 @@ export class BullMQHelper extends BaseHelper {
       return;
     }
 
-    this.queue = new Queue(this.queueName, {
+    this.queue = new Queue<TQueueElement, TQueueResult>(this.queueName, {
       connection: this.connection,
       defaultJobOptions: {
         removeOnComplete: true,
@@ -75,9 +93,9 @@ export class BullMQHelper extends BaseHelper {
       return;
     }
 
-    this.worker = new Worker(
+    this.worker = new Worker<TQueueElement, TQueueResult>(
       this.queueName,
-      async (job: Job) => {
+      async job => {
         if (this.onWorkerData) {
           const rs = await this.onWorkerData(job);
           return rs;
@@ -93,7 +111,11 @@ export class BullMQHelper extends BaseHelper {
           data,
         );
       },
-      { connection: this.connection, concurrency: this.numberOfWorker },
+      {
+        connection: this.connection,
+        concurrency: this.numberOfWorker,
+        lockDuration: this.lockDuration,
+      },
     );
 
     this.worker.on('completed', (job, result) => {

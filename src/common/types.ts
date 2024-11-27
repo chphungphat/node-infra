@@ -34,6 +34,7 @@ export type IdType = string | number;
 export type AnyType = any;
 export type AnyObject = Record<string | symbol | number, any>;
 export type ValueOrPromise<T> = T | Promise<T>;
+export type ValueOf<T> = T[keyof T];
 
 export type NullableType = undefined | null | void;
 
@@ -42,6 +43,10 @@ export type TRelationType = 'belongsTo' | 'hasOne' | 'hasMany' | 'hasManyThrough
 export type TBullQueueRole = 'queue' | 'worker';
 
 export type TPermissionEffect = 'allow' | 'deny';
+
+export type TStatusFromClass<T extends ClassType<AnyObject>> = ValueOf<
+  Omit<T, 'prototype' | 'isValid' | 'SCHEME_SET'>
+>;
 
 // ----------------------------------------------------------------------------------------------------------------------------------------
 export interface IEntity {
