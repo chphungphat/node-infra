@@ -1,16 +1,17 @@
 import { IDataSourceOptions } from '@/base/datasources';
-import { RedisHelper } from '@/helpers';
-import { Entity, KVConnector } from '@loopback/repository';
+import { IRedisHelperProps, RedisHelper } from '@/helpers';
+import { Entity, KVConnector, Options } from '@loopback/repository';
 
-export interface IRedisOptions extends IDataSourceOptions {
-  connector: 'redis';
-  host: string;
-  port: string | number;
-  password: string;
-}
+export interface IRedisOptions extends IDataSourceOptions, IRedisHelperProps {}
 
 export interface IRedisConnector<E extends Entity = any> extends KVConnector<E> {
   redisHelper: RedisHelper;
 
-  initialize(): Promise<void>;
+  execute<R extends object = any>(
+    command: string,
+    parameters?: Array<string | number> | string | number | object,
+    options?: Options,
+  ): Promise<R>;
+
+  execute<R extends object = any>(...args: any[]): Promise<R>;
 }
