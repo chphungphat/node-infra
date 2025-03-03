@@ -1,10 +1,12 @@
 import { IdType } from '../../../common';
 import { Getter } from '@loopback/core';
+import { RequestContext } from '@loopback/rest';
 import { ChangePasswordRequest, IAuthenticateRestOptions, IAuthService, SignInRequest, SignUpRequest } from '../common';
 export declare const defineAuthController: <SI extends SignInRequest = SignInRequest, SU extends SignUpRequest = SignUpRequest, CP extends ChangePasswordRequest = ChangePasswordRequest>(opts: IAuthenticateRestOptions) => {
-    new (authService: IAuthService, getCurrentUser: Getter<{
+    new (requestContext: RequestContext, authService: IAuthService, getCurrentUser: Getter<{
         userId: IdType;
     }>): {
+        requestContext: RequestContext;
         service: IAuthService;
         getCurrentUser: Getter<{
             userId: IdType;

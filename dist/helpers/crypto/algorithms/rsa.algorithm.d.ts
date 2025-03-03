@@ -17,8 +17,8 @@ export declare class RSA extends BaseCryptoAlgorithm<RSAAlgorithmType, IO> {
     generateDERKeyPair(opts?: {
         modulus: number;
     }): {
-        publicKey: Buffer;
-        privateKey: Buffer;
+        publicKey: Buffer<ArrayBufferLike>;
+        privateKey: Buffer<ArrayBufferLike>;
     };
     encrypt(message: string, pubKey: string, opts?: IO): string;
     decrypt(message: string, privKey: string, opts?: IO): string;

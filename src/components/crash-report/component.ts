@@ -32,20 +32,22 @@ export class CrashReportComponent extends BaseComponent implements LifeCycleObse
   async binding() {
     if (!this.application.isBound(CrashReportKeys.REPORT_PROVIDERS)) {
       throw getError({
-        message: '[binding] Invalid crash report provider | REPORT_PROVIDER is not bounded to application context',
+        message:
+          '[binding] Invalid crash report provider | REPORT_PROVIDER is not bounded to application context',
       });
     }
     const reportProviders =
-      this.application.getSync<Array<{ identifier: TCrashReportProviders; options: ICrashReportOptions }>>(
-        CrashReportKeys.REPORT_PROVIDERS,
-      ) ?? [];
+      this.application.getSync<
+        Array<{ identifier: TCrashReportProviders; options: ICrashReportOptions }>
+      >(CrashReportKeys.REPORT_PROVIDERS) ?? [];
 
-    const providerServices: Array<{ service: ICrashReportProvider; options: ICrashReportOptions }> = [];
+    const providerServices: Array<{ service: ICrashReportProvider; options: ICrashReportOptions }> =
+      [];
     for (const reportProvider of reportProviders) {
       const { identifier, options } = reportProvider;
       if (!CrashReportProviderKeys.isValid({ identifier })) {
         this.logger.error('[binding] Invalid provider identifier: %s | Valid: %j', identifier, [
-          ...CrashReportProviderKeys.TYPE_SET,
+          ...CrashReportProviderKeys.SCHEME_SET,
         ]);
         continue;
       }

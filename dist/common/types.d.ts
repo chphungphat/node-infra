@@ -1,38 +1,69 @@
-import { BaseIdEntity, BaseTzEntity } from '../base/base.model';
-import { BindingKey } from '@loopback/core';
-import { Count, DataObject, Entity, Filter, Options, Where } from '@loopback/repository';
+import { AbstractTzRepository } from '../base';
+import { BaseEntity, BaseIdEntity, BaseTzEntity } from '../base/base.model';
+import { Binding, BindingFromClassOptions, BindingKey, ControllerClass } from '@loopback/core';
+import { Count, DataObject, Entity, Filter, Options, Repository, Where } from '@loopback/repository';
+import { RequestContext } from '@loopback/rest';
+import { IncomingHttpHeaders } from 'http';
+import { ParsedUrlQuery } from 'querystring';
+export type NumberIdType = number;
+export type StringIdType = string;
+export type IdType = string | number;
+export type NullableType = undefined | null | void;
+export type AnyType = any;
+export type AnyObject = Record<string | symbol | number, any>;
+export type ValueOrPromise<T> = T | Promise<T>;
+export type ValueOf<T> = T[keyof T];
+export type ValueOptional<T, K extends keyof T> = Omit<T, K> & Partial<Pick<T, K>>;
+export type ValueOptionalExcept<T, K extends keyof T> = Pick<T, K> & Partial<Omit<T, K>>;
+/**
+ * Alias for {@link ValueOf<T>}
+ */
+export type ClassProps<T> = ValueOf<T>;
+export type ClassType<T> = Function & {
+    prototype: T;
+};
+export type TStatusFromClass<T extends ClassType<AnyObject>> = ValueOf<Omit<T, 'prototype' | 'isValid' | 'SCHEME_SET'>>;
+export type TConstValue<T extends ClassType<AnyObject>> = ValueOf<Omit<T, 'prototype' | 'isValid' | 'SCHEME_SET'>>;
+export type TRelationType = 'belongsTo' | 'hasOne' | 'hasMany' | 'hasManyThrough';
+export type TBullQueueRole = 'queue' | 'worker';
+export type TPermissionEffect = 'allow' | 'deny';
 export interface IApplication {
     models: Set<string>;
     staticConfigure(): void;
     getProjectRoot(): string;
     preConfigure(): void;
     postConfigure(): void;
+    grpcController<T>(ctor: ControllerClass<T>, nameOrOptions?: string | BindingFromClassOptions): Binding<T>;
+    getServerHost(): string;
+    getServerPort(): number;
+    getServerAddress(): string;
+    getRepositorySync<T extends IRepository>(c: ClassType<T>): T;
+    getServiceSync<T extends IService>(c: ClassType<T>): T;
+    getMigrateModels(opts: {
+        ignoreModels?: string[];
+        migrateModels?: string[];
+    }): ValueOrPromise<Array<Repository<BaseEntity>>>;
+    migrateModels(opts: {
+        existingSchema: string;
+        ignoreModels?: string[];
+        migrateModels?: string[];
+    }): ValueOrPromise<void>;
 }
-export interface IDataSource {
+export interface IDataSource<T extends object = object> {
     name: string;
-    config: object;
+    config: T;
 }
-export type ClassType<T> = Function & {
-    prototype: T;
-};
+export interface IEntity {
+    id: IdType;
+}
 export type EntityClassType<T extends Entity> = typeof Entity & {
     prototype: T & {
         id?: IdType;
     };
 };
 export type EntityRelationType = {};
-export type NumberIdType = number;
-export type StringIdType = string;
-export type IdType = string | number;
-export type AnyType = any;
-export type AnyObject = Record<string | symbol | number, any>;
-export type ValueOrPromise<T> = T | Promise<T>;
-export type NullableType = undefined | null | void;
-export type TRelationType = 'belongsTo' | 'hasOne' | 'hasMany' | 'hasManyThrough';
-export type TBullQueueRole = 'queue' | 'worker';
-export type TPermissionEffect = 'allow' | 'deny';
-export interface IEntity {
-    id: IdType;
+export interface IDangerFilter extends Omit<Filter, 'order'> {
+    order: string | string[];
 }
 export interface IRepository {
 }
@@ -57,14 +88,38 @@ export interface ITzRepository<E extends BaseTzEntity> extends IPersistableRepos
         authorId: IdType;
     }): DataObject<E>;
 }
-export interface IDangerFilter extends Omit<Filter, 'order'> {
-    order: string | string[];
-}
 export interface IService {
+}
+export interface ICrudMethodOptions {
+    currentUser: {
+        userId: IdType;
+        roles: Array<{
+            id: IdType;
+            identifier: string;
+            priority: number;
+        }>;
+        [extra: string | symbol]: any;
+    } | null;
+    requestContext: RequestContext;
+    [extra: symbol | string]: any;
+}
+export interface ICrudService<E extends BaseTzEntity> extends IService {
+    repository: AbstractTzRepository<E, EntityRelationType>;
+    find(filter: Filter<E>, options: ICrudMethodOptions): Promise<Array<E & EntityRelationType>>;
+    findById(id: IdType, filter: Filter<E>, options: ICrudMethodOptions): Promise<E & EntityRelationType>;
+    findOne(filter: Filter<E>, options: ICrudMethodOptions): Promise<(E & EntityRelationType) | null>;
+    count(where: Where<E>, options: ICrudMethodOptions): Promise<Count>;
+    create(data: Omit<E, 'id'>, options: ICrudMethodOptions): Promise<E>;
+    updateAll(data: Partial<E>, where: Where<E>, options: ICrudMethodOptions): Promise<Count>;
+    updateWithReturn(id: IdType, data: Partial<E>, options: ICrudMethodOptions): Promise<E>;
+    replaceById(id: IdType, data: E, options: ICrudMethodOptions): Promise<E>;
+    deleteById(id: IdType, options: ICrudMethodOptions): Promise<{
+        id: IdType;
+    }>;
 }
 export interface IController {
 }
-export interface ICRUDController extends IController {
+export interface ICrudController extends IController {
     defaultLimit: number;
     relation?: {
         name: string;
@@ -82,8 +137,8 @@ export interface IEnvironmentValidationResult {
     result: boolean;
     message?: string;
 }
-export interface IError<N extends number = number> extends Error {
-    statusCode: N;
+export interface IError<StatusCode extends number = number> extends Error {
+    statusCode: StatusCode;
     message: string;
     [key: string]: any;
 }
@@ -94,3 +149,16 @@ export interface IRequestedRemark {
     [extra: string | symbol]: any;
 }
 export type TInjectionGetter = <T>(key: string | BindingKey<T>) => T;
+export interface IHandshake {
+    headers: IncomingHttpHeaders;
+    time: string;
+    address: string;
+    xdomain: boolean;
+    secure: boolean;
+    issued: number;
+    url: string;
+    query: ParsedUrlQuery;
+    auth: {
+        [key: string]: any;
+    };
+}

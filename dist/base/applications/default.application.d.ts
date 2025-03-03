@@ -13,7 +13,4 @@ export declare abstract class DefaultRestApplication extends BaseApplication {
     declareModels(): Set<string>;
     configureMigration(): void;
     preConfigure(): void;
-    abstract staticConfigure(): void;
-    abstract getProjectRoot(): string;
-    abstract postConfigure(): void;
 }

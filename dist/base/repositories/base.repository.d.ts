@@ -1,11 +1,21 @@
 import { AnyType, EntityClassType, EntityRelationType, IdType, ITzRepository } from '../../common/types';
 import { ApplicationLogger } from '../../helpers';
-import { AnyObject, WhereBuilder as BaseWhereBuilder, Command, Count, DataObject, DefaultCrudRepository, DefaultKeyValueRepository, IsolationLevel, juggler, NamedParameters, Options, PositionalParameters, Transaction, TransactionalEntityRepository, Where } from '@loopback/repository';
+import { AnyObject, WhereBuilder as BaseWhereBuilder, Command, Count, DataObject, DefaultCrudRepository as _DefaultCrudRepository, DefaultKeyValueRepository, IsolationLevel, juggler, NamedParameters, Options, PositionalParameters, Transaction, TransactionalEntityRepository, Where, HasManyRepositoryFactory, Getter, EntityCrudRepository } from '@loopback/repository';
 import { BaseEntity, BaseKVEntity, BaseTzEntity } from '../base.model';
 export declare class WhereBuilder<E extends object = AnyObject> extends BaseWhereBuilder {
     constructor(opts?: Where<E>);
     newInstance(opts?: Where<E>): WhereBuilder<E>;
     clone(): WhereBuilder;
+}
+export declare class DefaultCrudRepository<E extends BaseEntity, ID, Relations extends object = {}> extends _DefaultCrudRepository<E, ID, Relations> {
+    /**
+     * @experimental
+     */
+    createHasManyPolymorphicRepositoryFactoryFor<Target extends BaseEntity, TargetId extends IdType, ForeignKeyType extends IdType>(opts: {
+        relationName: string;
+        principalType: string;
+        targetRepositoryGetter: Getter<EntityCrudRepository<Target, TargetId>>;
+    }): HasManyRepositoryFactory<Target, ForeignKeyType>;
 }
 export declare abstract class AbstractTzRepository<E extends BaseTzEntity, R extends EntityRelationType = AnyType> extends DefaultCrudRepository<E, IdType, R> implements ITzRepository<E>, TransactionalEntityRepository<E, IdType, R> {
     protected logger: ApplicationLogger;

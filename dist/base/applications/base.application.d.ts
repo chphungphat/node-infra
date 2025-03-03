@@ -1,4 +1,4 @@
-import { IApplication, IEnvironmentValidationResult } from '../../common/types';
+import { ClassType, IApplication, IEnvironmentValidationResult, IRepository, IService } from '../../common/types';
 import { ApplicationLogger } from '../../helpers';
 import { ApplicationConfig, Binding, BindingFromClassOptions, BindingScope, Constructor, ControllerClass } from '@loopback/core';
 import { Repository } from '@loopback/repository';
@@ -289,10 +289,12 @@ export declare abstract class BaseApplication extends BaseApplication_base imple
     getServerHost(): string;
     getServerPort(): number;
     getServerAddress(): string;
+    getRepositorySync<R extends IRepository>(c: ClassType<R>): R;
+    getServiceSync<S extends IService>(c: ClassType<S>): S;
     getMigrateModels(opts: {
         ignoreModels?: string[];
         migrateModels?: string[];
-    }): Promise<unknown[]>;
+    }): Promise<Repository<BaseEntity>[]>;
     classifyModelsByDs(opts: {
         reps: Array<Repository<BaseEntity>>;
     }): Record<string, string[]>;

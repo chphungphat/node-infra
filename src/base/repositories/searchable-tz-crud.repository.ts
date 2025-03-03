@@ -1,12 +1,24 @@
-import { AnyType, EntityClassType, EntityRelationType, IdType, TRelationType } from '@/common/types';
+import {
+  AnyType,
+  EntityClassType,
+  EntityRelationType,
+  IdType,
+  TRelationType,
+} from '@/common/types';
 import { BindingScope, injectable } from '@loopback/core';
 import { DataObject, Getter, Inclusion, juggler, Options, Where } from '@loopback/repository';
 
-import { BaseObjectSearchTzEntity, BaseSearchableTzEntity, BaseTextSearchTzEntity, BaseTzEntity } from '../base.model';
+import {
+  BaseObjectSearchTzEntity,
+  BaseSearchableTzEntity,
+  BaseTextSearchTzEntity,
+  BaseTzEntity,
+} from '../base.model';
 import { TzCrudRepository } from './tz-crud.repository';
 
 import get from 'lodash/get';
 import set from 'lodash/set';
+import { buildBatchUpdateQuery, executePromiseWithLimit, getTableDefinition } from '@/utilities';
 
 @injectable({ scope: BindingScope.SINGLETON })
 export abstract class SearchableTzCrudRepository<
@@ -162,7 +174,7 @@ export abstract class SearchableTzCrudRepository<
   private async renderSearchable(
     field: 'textSearch' | 'objectSearch',
     data: DataObject<E>,
-    options?: Options & { where?: Where },
+    options?: Options & { where?: Where; ignoreMixSearchFields?: boolean },
   ) {
     const where = get(options, 'where');
     const isSearchable = get(this.modelClass.definition.properties, field, null) !== null;
@@ -172,7 +184,11 @@ export abstract class SearchableTzCrudRepository<
 
     let resolved = [data] as (E & R)[];
     if (this.isInclusionRelations && this.searchableInclusions.length) {
-      resolved = await this.includeRelatedModels([data as AnyType], this.searchableInclusions, options);
+      resolved = await this.includeRelatedModels(
+        [data as AnyType],
+        this.searchableInclusions,
+        options,
+      );
     }
 
     switch (field) {
@@ -208,7 +224,10 @@ export abstract class SearchableTzCrudRepository<
   }
 
   // ----------------------------------------------------------------------------------------------------
-  async mixSearchFields(data: DataObject<E>, options?: Options & { where?: Where }): Promise<DataObject<E>> {
+  mixSearchFields(
+    data: DataObject<E>,
+    options?: Options & { where?: Where; ignoreMixSearchFields?: boolean },
+  ): Promise<DataObject<E>> {
     return new Promise((resolve, reject) => {
       const ignoreMixSearchFields = get(options, 'ignoreMixSearchFields');
 
@@ -236,9 +255,14 @@ export abstract class SearchableTzCrudRepository<
   }
 
   // ----------------------------------------------------------------------------------------------------
-  create(data: DataObject<E>, options?: Options): Promise<E> {
+  override create(
+    data: DataObject<E>,
+    options?: Options & { ignoreMixSearchFields?: boolean },
+  ): Promise<E> {
+    const tmp = this.mixUserAudit(data, { newInstance: true, authorId: options?.authorId });
+
     return new Promise((resolve, reject) => {
-      this.mixSearchFields(data, options)
+      this.mixSearchFields(tmp, options)
         .then(enriched => {
           resolve(super.create(enriched, options));
         })
@@ -247,11 +271,16 @@ export abstract class SearchableTzCrudRepository<
   }
 
   // ----------------------------------------------------------------------------------------------------
-  createAll(data: DataObject<E>[], options?: Options): Promise<E[]> {
+  override createAll(
+    data: DataObject<E>[],
+    options?: Options & { ignoreMixSearchFields?: boolean },
+  ): Promise<E[]> {
     return new Promise((resolve, reject) => {
       Promise.all(
         data.map(el => {
-          return this.mixSearchFields(el, options);
+          const tmp = this.mixUserAudit(el, { newInstance: true, authorId: options?.authorId });
+
+          return this.mixSearchFields(tmp, options);
         }),
       )
         .then(enriched => {
@@ -262,9 +291,17 @@ export abstract class SearchableTzCrudRepository<
   }
 
   // ----------------------------------------------------------------------------------------------------
-  updateById(id: IdType, data: DataObject<E>, options?: Options): Promise<void> {
+  override updateById(
+    id: IdType,
+    data: DataObject<E>,
+    options?: Options & {
+      ignoreMixSearchFields?: boolean;
+    },
+  ): Promise<void> {
+    const tmp = this.mixUserAudit(data, { newInstance: false, authorId: options?.authorId });
+
     return new Promise((resolve, reject) => {
-      this.mixSearchFields(data, { ...options, where: { id } })
+      this.mixSearchFields(tmp, { ...options, where: { id } })
         .then(enriched => {
           resolve(super.updateById(id, enriched, options));
         })
@@ -273,13 +310,104 @@ export abstract class SearchableTzCrudRepository<
   }
 
   // ----------------------------------------------------------------------------------------------------
-  replaceById(id: IdType, data: DataObject<E>, options?: Options): Promise<void> {
+  override replaceById(
+    id: IdType,
+    data: DataObject<E>,
+    options?: Options & {
+      ignoreMixSearchFields?: boolean;
+    },
+  ): Promise<void> {
+    const tmp = this.mixUserAudit(data, { newInstance: false, authorId: options?.authorId });
+
     return new Promise((resolve, reject) => {
-      this.mixSearchFields(data, options)
+      this.mixSearchFields(tmp, options)
         .then(enriched => {
           resolve(super.replaceById(id, enriched, options));
         })
         .catch(reject);
     });
+  }
+
+  // ----------------------------------------------------------------------------------------------------
+  private _syncSearchFields(entities: (E & R)[], options?: Options & { pagingLimit?: number }) {
+    const { table, columns } = getTableDefinition<E>({ model: this.entityClass });
+
+    const data = entities.map(e => {
+      return {
+        id: e.id,
+        objectSearch: this.renderObjectSearch({ data: e, entity: e }),
+        textSearch: this.renderTextSearch({ data: e, entity: e }),
+      };
+    });
+
+    const setKeys: (
+      | keyof BaseSearchableTzEntity
+      | { sourceKey: keyof BaseSearchableTzEntity; targetKey: keyof BaseSearchableTzEntity }
+    )[] = [];
+    const keys: (keyof BaseSearchableTzEntity)[] = [];
+
+    if (get(columns, 'objectSearch')) {
+      setKeys.push({ sourceKey: 'objectSearch', targetKey: 'objectSearch' });
+      keys.push('objectSearch');
+    }
+
+    if (get(columns, 'textSearch')) {
+      setKeys.push('textSearch');
+      keys.push('textSearch');
+    }
+
+    const query = buildBatchUpdateQuery<BaseSearchableTzEntity>({
+      data,
+      keys: ['id', ...keys],
+      tableName: table.name,
+      setKeys,
+      whereKeys: ['id'],
+    });
+
+    return this.execute(query, undefined, options);
+  }
+
+  // ----------------------------------------------------------------------------------------------------
+  async syncSearchFields(
+    where?: Where<E>,
+    options?: Options & { pagingLimit?: number },
+  ): Promise<void> {
+    const t = performance.now();
+
+    const pagingLimit = get(options, 'pagingLimit', 50);
+    let pagingOffset = 0;
+
+    this.logger.info('[syncSearchFields] Start sync searchable fields');
+    const tasks: (() => Promise<void>)[] = [];
+    while (true) {
+      const entities = await this.find(
+        { where, include: this.searchableInclusions, limit: pagingLimit, offset: pagingOffset },
+        options,
+      );
+      this.logger.info('[syncSearchFields] Where: %j | Found: %d', where, entities.length);
+
+      tasks.push(() =>
+        this._syncSearchFields(entities, options)
+          .then(() => {
+            this.logger.info(`[syncSearchFields] Sucess sync %d rows`, entities.length);
+          })
+          .catch(e => {
+            this.logger.error(`[syncSearchFields] Error: %j`, e);
+          }),
+      );
+
+      pagingOffset += pagingLimit;
+      if (entities.length < pagingLimit) {
+        break;
+      }
+    }
+
+    await executePromiseWithLimit({ tasks, limit: 5 });
+    this.logger.info(
+      '[syncSearchFields] End sync searchable fields | Took: %d (ms)',
+      performance.now() - t,
+    );
+
+    return;
   }
 }

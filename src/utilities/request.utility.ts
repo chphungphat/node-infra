@@ -4,7 +4,11 @@ import get from 'lodash/get';
 import multer from 'multer';
 
 // -------------------------------------------------------------------------
-export const parseMultipartBody = (opts: { storage?: multer.StorageEngine; request: Request; response: Response }) => {
+export const parseMultipartBody = (opts: {
+  storage?: multer.StorageEngine;
+  request: Request;
+  response: Response;
+}) => {
   const { storage: cStorage, request, response } = opts;
   const storage = cStorage ?? multer.memoryStorage();
   const upload = multer({ storage });
@@ -29,6 +33,11 @@ export const getSchemaObject = <T extends object>(ctor?: Function & { prototype:
 // -------------------------------------------------------------------------
 export const getRequestId = (opts: { request: Request }) => {
   return get(opts.request, 'requestId');
+};
+
+// -------------------------------------------------------------------------
+export const getRequestIp = (opts: { request: Request }) => {
+  return get(opts.request, 'requestForwardedIp') ?? 'N/A';
 };
 
 // -------------------------------------------------------------------------

@@ -1,4 +1,4 @@
-import { BaseDataSource } from '../../../base/base.datasource';
+import { BaseDataSource } from '../../../base/datasources';
 import { ApplicationLogger } from '../../../helpers';
 import { FilteredAdapter, Model } from 'casbin';
 export declare abstract class AbstractCasbinAdapter implements FilteredAdapter {

@@ -1,4 +1,4 @@
-import { BaseDataSource } from '../../../base/base.datasource';
+import { BaseDataSource } from '../../../base/datasources';
 import { IdType } from '../../../common';
 import { Enforcer } from 'casbin';
 import { IAuthorizeConfigureOptions } from '../common';

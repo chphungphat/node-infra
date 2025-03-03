@@ -6,10 +6,18 @@ import { BaseTzEntity } from './..';
 import { BaseController } from './common';
 export interface IRelationCrudControllerOptions {
     association: {
-        source: string;
-        relationName: string;
-        relationType: TRelationType;
-        target: string;
+        entities: {
+            source: string;
+            target: string;
+        };
+        repositories?: {
+            source: string;
+            target: string;
+        };
+        relation: {
+            name: string;
+            type: TRelationType;
+        };
     };
     schema: {
         source?: SchemaObject;
@@ -18,21 +26,33 @@ export interface IRelationCrudControllerOptions {
     };
     options?: {
         useControlTarget: boolean;
+        doInjectCurrentUser?: boolean;
         defaultLimit?: number;
         endPoint?: string;
     };
 }
-export declare const defineRelationViewController: <S extends BaseTzEntity, T extends BaseTzEntity>(opts: {
+export declare const defineRelationViewController: <S extends BaseTzEntity, // Source Entity Type
+T extends BaseTzEntity, // Target Entity Type
+TE extends BaseTzEntity = any>(opts: {
     baseClass?: Class<BaseController>;
-    relationType: TRelationType;
-    relationName: string;
+    entities: {
+        source: string;
+        target: string;
+    };
+    relation: {
+        name: string;
+        type: TRelationType;
+    };
     defaultLimit?: number;
     endPoint?: string;
     schema?: SchemaObject;
 }) => ControllerClass;
 export declare const defineAssociateController: <S extends BaseTzEntity, T extends BaseTzEntity, R extends BaseTzEntity | NullableType>(opts: {
-    baseClass?: Class<BaseController>;
-    relationName: string;
+    baseClass: ReturnType<typeof defineRelationViewController>;
+    relation: {
+        name: string;
+        type: TRelationType;
+    };
     defaultLimit?: number;
     endPoint?: string;
     schema?: SchemaObject;

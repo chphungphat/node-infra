@@ -19,6 +19,7 @@ export declare class SocketIOClientHelper {
     getSocketClient(): Socket;
     subscribe(opts: {
         events: Record<string, (...props: any) => void>;
+        ignoreDuplicate?: boolean;
     }): void;
     unsubscribe(opts: {
         events: Array<string>;

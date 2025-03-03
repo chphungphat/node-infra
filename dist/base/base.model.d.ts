@@ -35,6 +35,13 @@ declare const BaseUserAuditTzEntity_base: {
         toObject: (options?: import("@loopback/repository").Options) => Object;
     };
 } & typeof BaseTzEntity;
+/**
+ * Basic UserAuditMixed class with createdBy and modifiedBy
+ *
+ * NOTICE: This method have no userResolver
+ *
+ * In case you need to include User, directly extends {@link UserAuditMixin}
+ */
 export declare class BaseUserAuditTzEntity extends BaseUserAuditTzEntity_base {
 }
 declare const BaseDataTypeTzEntity_base: {

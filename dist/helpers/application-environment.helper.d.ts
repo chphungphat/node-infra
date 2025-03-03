@@ -8,6 +8,7 @@ export declare class ApplicationEnvironment implements IApplicationEnvironment {
     });
     get<ReturnType>(key: string): ReturnType;
     set<ValueType>(key: string, value: ValueType): void;
+    isDevelopment(): boolean;
     keys(): string[];
 }
 export declare const applicationEnvironment: ApplicationEnvironment;

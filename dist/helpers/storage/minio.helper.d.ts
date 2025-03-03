@@ -27,7 +27,7 @@ export declare class MinioHelper extends BaseHelper {
     }): Promise<boolean>;
     getFileType(opts: {
         mimeType: string;
-    }): "unknown" | "image" | "video" | "text";
+    }): "text" | "image" | "video" | "unknown";
     upload(opts: {
         bucket: string;
         files: Array<IUploadFile>;
@@ -58,5 +58,5 @@ export declare class MinioHelper extends BaseHelper {
         bucket: string;
         prefix?: string;
         useRecursive?: boolean;
-    }): import("minio").BucketStream<import("minio").BucketItem>;
+    }): import("minio").BucketStream<import("minio/dist/main/internal/type.js").ObjectInfo>;
 }

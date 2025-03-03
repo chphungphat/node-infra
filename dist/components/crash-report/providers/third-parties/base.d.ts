@@ -9,5 +9,4 @@ export declare abstract class BaseCrashReportProvider extends AbstractCrashRepor
     constructor(opts?: {
         scope?: string;
     });
-    abstract sendReport(opts: ISendReport): ValueOrPromise<void>;
 }

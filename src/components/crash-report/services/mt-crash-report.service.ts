@@ -1,8 +1,9 @@
-import { BaseNetworkRequest, RSA } from '@/helpers';
-import { BaseCrashReportProvider } from '../providers';
-import { ISendReport, MTEndpoints } from '../common';
-import isEmpty from 'lodash/isEmpty';
+import { RSA } from '@/helpers/crypto';
+import { BaseNetworkRequest } from '@/helpers/network';
 import get from 'lodash/get';
+import isEmpty from 'lodash/isEmpty';
+import { ISendReport, MTEndpoints } from '../common';
+import { BaseCrashReportProvider } from '../providers';
 
 class CrashReportNetworkRequest extends BaseNetworkRequest {}
 
@@ -23,7 +24,13 @@ export class MTCrashReportService extends BaseCrashReportProvider {
 
   sendReport(opts: ISendReport) {
     const {
-      options: { projectId, eventName, publicKey, environment = process.env.NODE_ENV, generateBodyFn },
+      options: {
+        projectId,
+        eventName,
+        publicKey,
+        environment = process.env.NODE_ENV,
+        generateBodyFn,
+      },
       error,
     } = opts;
 

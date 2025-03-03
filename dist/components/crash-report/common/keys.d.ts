@@ -6,7 +6,7 @@ export declare class CrashReportKeys {
 export declare class CrashReportProviderKeys {
     static readonly MT_PROVIDER: TCrashReportProviders;
     static readonly SENTRY_PROVIDER: TCrashReportProviders;
-    static readonly TYPE_SET: Set<TCrashReportProviders>;
+    static readonly SCHEME_SET: Set<TCrashReportProviders>;
     static isValid(opts: {
         identifier: string;
     }): boolean;

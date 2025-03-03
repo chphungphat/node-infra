@@ -1,4 +1,4 @@
-import { BaseNetworkRequest } from '../../../helpers';
+import { BaseNetworkRequest } from '../../../helpers/network';
 import { Context } from '@loopback/core';
 import { Request } from '@loopback/rest';
 declare class AuthProviderNetworkRequest extends BaseNetworkRequest {

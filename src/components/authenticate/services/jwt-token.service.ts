@@ -1,4 +1,4 @@
-import { BaseService } from '@/base/base.service';
+import { BaseService } from '@/base/services';
 import { AES } from '@/helpers';
 import { getError } from '@/utilities';
 import { TokenServiceBindings } from '@loopback/authentication-jwt';
@@ -6,7 +6,8 @@ import { BindingScope, inject, injectable } from '@loopback/core';
 import { HttpErrors } from '@loopback/rest';
 import { securityId } from '@loopback/security';
 import jwt from 'jsonwebtoken';
-import { AuthenticateKeys, Authentication, IJWTTokenPayload } from '../common';
+import { AuthenticateKeys, Authentication, TGetTokenExpiresFn, IJWTTokenPayload } from '../common';
+import { ResultCodes } from '@/common';
 
 @injectable({ scope: BindingScope.SINGLETON })
 export class JWTTokenService extends BaseService {
@@ -14,9 +15,11 @@ export class JWTTokenService extends BaseService {
 
   constructor(
     @inject(AuthenticateKeys.APPLICATION_SECRET)
-    private applicationSecret: string,
-    @inject(TokenServiceBindings.TOKEN_SECRET) private jwtSecret: string,
-    @inject(TokenServiceBindings.TOKEN_EXPIRES_IN) private jwtExpiresIn: string,
+    protected applicationSecret: string,
+    @inject(TokenServiceBindings.TOKEN_SECRET) protected jwtSecret: string,
+    @inject(TokenServiceBindings.TOKEN_EXPIRES_IN) protected jwtExpiresIn: string,
+    @inject(AuthenticateKeys.GET_TOKEN_EXPIRES_FN, { optional: true })
+    protected getTokenExpiresFn: TGetTokenExpiresFn,
   ) {
     super({ scope: JWTTokenService.name });
   }
@@ -136,18 +139,33 @@ export class JWTTokenService extends BaseService {
   }
 
   // --------------------------------------------------------------------------------------
-  generate(payload: IJWTTokenPayload): string {
+  async generate(opts: {
+    payload: IJWTTokenPayload;
+    getTokenExpiresFn?: TGetTokenExpiresFn;
+  }): Promise<string> {
+    const {
+      payload,
+      getTokenExpiresFn = () => {
+        return Number(this.jwtExpiresIn);
+      },
+    } = opts;
+
     if (!payload) {
-      throw new HttpErrors.Unauthorized('Error generating token : userProfile is null');
+      throw getError({
+        statusCode: ResultCodes.RS_4.Unauthorized,
+        message: 'Error generating token : userProfile is null',
+      });
     }
 
     let token: string;
+    const expiresIn = (await this.getTokenExpiresFn?.()) ?? getTokenExpiresFn();
     try {
-      token = jwt.sign(this.encryptPayload(payload), this.jwtSecret, {
-        expiresIn: Number(this.jwtExpiresIn),
-      });
+      token = jwt.sign(this.encryptPayload(payload), this.jwtSecret, { expiresIn });
     } catch (error) {
-      throw new HttpErrors.Unauthorized(`Error encoding token : ${error}`);
+      throw getError({
+        statusCode: ResultCodes.RS_4.Unauthorized,
+        message: `Error encoding token : ${error}`,
+      });
     }
 
     return token;

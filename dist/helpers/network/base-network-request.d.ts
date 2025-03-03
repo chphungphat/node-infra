@@ -9,6 +9,9 @@ export declare abstract class BaseNetworkRequest extends BaseHelper {
         scope: string;
         networkOptions: AxiosRequestConfig;
     });
+    getRequestPath(opts: {
+        paths: Array<string>;
+    }): string;
     getRequestUrl(opts: {
         baseUrl?: string;
         paths: Array<string>;

@@ -61,4 +61,18 @@ export declare abstract class TzCrudRepository<E extends BaseTzEntity, R extends
         count: Count;
         data: (E & R)[];
     }>;
+    batchUpdate(opts: {
+        data: DataObject<E>[];
+        keys: (keyof E)[];
+        setKeys: (keyof E | {
+            sourceKey: keyof E;
+            targetKey: keyof E;
+        })[];
+        whereKeys: (keyof E | {
+            sourceKey: keyof E;
+            targetKey: keyof E;
+        })[];
+        whereRaws?: string[];
+        options?: Options;
+    }): Promise<import("@loopback/repository").AnyObject>;
 }

@@ -1,11 +1,12 @@
-import { BaseService } from '../../../base/base.service';
-import { IJWTTokenPayload } from '../common';
+import { BaseService } from '../../../base/services';
+import { TGetTokenExpiresFn, IJWTTokenPayload } from '../common';
 export declare class JWTTokenService extends BaseService {
-    private applicationSecret;
-    private jwtSecret;
-    private jwtExpiresIn;
+    protected applicationSecret: string;
+    protected jwtSecret: string;
+    protected jwtExpiresIn: string;
+    protected getTokenExpiresFn: TGetTokenExpiresFn;
     private aes;
-    constructor(applicationSecret: string, jwtSecret: string, jwtExpiresIn: string);
+    constructor(applicationSecret: string, jwtSecret: string, jwtExpiresIn: string, getTokenExpiresFn: TGetTokenExpiresFn);
     extractCredentials(request: {
         headers: any;
     }): {
@@ -20,5 +21,8 @@ export declare class JWTTokenService extends BaseService {
         type: string;
         token: string;
     }): IJWTTokenPayload;
-    generate(payload: IJWTTokenPayload): string;
+    generate(opts: {
+        payload: IJWTTokenPayload;
+        getTokenExpiresFn?: TGetTokenExpiresFn;
+    }): Promise<string>;
 }

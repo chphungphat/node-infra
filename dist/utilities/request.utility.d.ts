@@ -12,6 +12,9 @@ export declare const getSchemaObject: <T extends object>(ctor?: Function & {
 export declare const getRequestId: (opts: {
     request: Request;
 }) => undefined;
+export declare const getRequestIp: (opts: {
+    request: Request;
+}) => string;
 export declare const getRequestRemark: (opts: {
     request: Request;
 }) => IRequestedRemark | undefined;

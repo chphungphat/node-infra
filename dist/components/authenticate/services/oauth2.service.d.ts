@@ -1,7 +1,7 @@
 import { BaseApplication } from '../../../base/applications';
-import { BaseService } from '../../../base/base.service';
 import { RequestContext } from '@loopback/rest';
 import { Request, Response, Token } from '@node-oauth/oauth2-server';
+import { BaseService } from '../../../base/services';
 import { SignInRequest } from '../common';
 import { OAuth2Handler } from '../oauth2-handlers';
 import { OAuth2ClientRepository } from '../repositories';

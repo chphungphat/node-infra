@@ -34,7 +34,11 @@ export class SocketIOClientHelper {
   // -----------------------------------------------------------------
   configure() {
     if (this.client) {
-      this.logger.info('[configure][%s] SocketIO Client already established! Client: %j', this.identifier, this.client);
+      this.logger.info(
+        '[configure][%s] SocketIO Client already established! Client: %j',
+        this.identifier,
+        this.client,
+      );
       return;
     }
 
@@ -47,15 +51,29 @@ export class SocketIOClientHelper {
   }
 
   // -----------------------------------------------------------------
-  subscribe(opts: { events: Record<string, (...props: any) => void> }) {
-    const eventHandlers = opts.events;
+  subscribe(opts: { events: Record<string, (...props: any) => void>; ignoreDuplicate?: boolean }) {
+    const { events: eventHandlers, ignoreDuplicate = false } = opts;
+
     const eventNames = Object.keys(eventHandlers);
     this.logger.info('[subscribe][%s] Handling events: %j', this.identifier, eventNames);
 
     for (const eventName of eventNames) {
       const handler = eventHandlers[eventName];
       if (!handler) {
-        this.logger.info('[subscribe][%s] Ignore handling event %s because of no handler!', this.identifier, eventName);
+        this.logger.info(
+          '[subscribe][%s] Ignore handling event %s because of no handler!',
+          this.identifier,
+          eventName,
+        );
+        continue;
+      }
+
+      if (ignoreDuplicate && this.client.hasListeners(eventName)) {
+        this.logger.info(
+          '[subscribe][%s] Ignore handling event %s because of duplicate handler!',
+          this.identifier,
+          eventName,
+        );
         continue;
       }
 

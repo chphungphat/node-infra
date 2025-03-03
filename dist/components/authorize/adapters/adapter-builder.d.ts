@@ -1,4 +1,4 @@
-import { BaseDataSource } from '../../../base/base.datasource';
+import { BaseDataSource } from '../../../base/datasources';
 import { FilteredAdapter } from 'casbin';
 import { TCasbinAdapter } from '../common';
 export declare class CasbinAdapterBuilder {

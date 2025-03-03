@@ -1,16 +1,49 @@
 import isEmpty from 'lodash/isEmpty';
 import { applicationLogger } from './default-logger';
+import { getError } from '@/utilities';
+import winston from 'winston';
+import { TLogLevel } from './common';
 
-const LOG_ENVIRONMENTS = new Set(['development', 'alpha', 'beta', 'staging']);
+const extraLogEnvs =
+  (process.env.APP_ENV_EXTRA_LOG_ENVS ?? '').split(',').map(el => el.trim()) ?? [];
+const LOG_ENVIRONMENTS = new Set([
+  'local',
+  'development',
+  'alpha',
+  'beta',
+  'staging',
+  ...extraLogEnvs,
+]);
 
-class Logger {
+export class Logger {
+  private readonly environment: string | undefined = process.env.NODE_ENV;
+
   private scopes: string[] = [];
-  readonly _environment: string | undefined;
+  private customLogger?: winston.Logger;
 
-  constructor() {
-    this._environment = process.env.NODE_ENV;
+  constructor(opts?: { customLogger?: winston.Logger }) {
+    this.customLogger = opts?.customLogger;
   }
 
+  // ---------------------------------------------------------------------
+  private getLogger() {
+    return this.customLogger ?? applicationLogger;
+  }
+
+  // ---------------------------------------------------------------------
+  private _enhanceMessage(parts: string[], message: string) {
+    const enhanced = parts?.reduce((prevState = '', current: string) => {
+      if (isEmpty(prevState)) {
+        return current;
+      }
+
+      return prevState.concat(`-${current}`);
+    }, '');
+
+    return `[${enhanced}]${message}`;
+  }
+
+  // ---------------------------------------------------------------------
   withScope(scope: string) {
     if (this.scopes.length < 2) {
       this.scopes.push(scope);
@@ -25,51 +58,48 @@ class Logger {
     return this;
   }
 
-  private _enhanceMessage(parts: string[], message: string) {
-    const enhanced = parts?.reduce((prevState = '', current: string) => {
-      if (isEmpty(prevState)) {
-        return current;
-      }
-
-      return prevState.concat(`-${current}`);
-    }, '');
-
-    return `[${enhanced}]${message}`;
-  }
-
-  debug(message: string, ...args: any[]) {
-    if (this._environment && !LOG_ENVIRONMENTS.has(this._environment)) {
-      return;
+  // ---------------------------------------------------------------------
+  log(level: TLogLevel, message: string, ...args: any[]) {
+    const logger = this.getLogger();
+    if (!logger) {
+      throw getError({ message: `[doLog] Level: ${level} | Invalid logger instance!` });
     }
 
-    if (!applicationLogger) {
-      throw new Error('Invalid logger instance!');
+    const enhanced = this._enhanceMessage(this.scopes, message);
+    logger.log(level, enhanced, ...args);
+  }
+
+  // ---------------------------------------------------------------------
+  debug(message: string, ...args: any[]) {
+    if (this.environment && !LOG_ENVIRONMENTS.has(this.environment)) {
+      return;
     }
 
     if (!process.env.DEBUG) {
       return;
     }
 
-    const enhanced = this._enhanceMessage(this.scopes, message);
-    applicationLogger.log('debug', enhanced, ...args);
+    this.log('debug', message, ...args);
   }
 
+  // ---------------------------------------------------------------------
   info(message: string, ...args: any[]) {
-    if (!applicationLogger) {
-      throw new Error('Invalid logger instance!');
-    }
-
-    const enhanced = this._enhanceMessage(this.scopes, message);
-    applicationLogger.log('info', enhanced, ...args);
+    this.log('info', message, ...args);
   }
 
-  error(message: string, ...args: any[]) {
-    if (!applicationLogger) {
-      throw new Error('Invalid logger instance!');
-    }
+  // ---------------------------------------------------------------------
+  warn(message: string, ...args: any[]) {
+    this.log('warn', message, ...args);
+  }
 
-    const enhanced = this._enhanceMessage(this.scopes, message);
-    applicationLogger.log('error', enhanced, ...args);
+  // ---------------------------------------------------------------------
+  error(message: string, ...args: any[]) {
+    this.log('error', message, ...args);
+  }
+
+  // ---------------------------------------------------------------------
+  emerg(message: string, ...args: any[]) {
+    this.log('emerg', message, ...args);
   }
 }
 

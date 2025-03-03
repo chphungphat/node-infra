@@ -1,7 +1,7 @@
 import Redis from 'ioredis';
 import { Server as IOServer, Socket as IOSocket, ServerOptions } from 'socket.io';
+import { IHandshake } from '../../../common/types';
 import { Server } from 'http';
-import { IHandshake } from './types';
 export interface ISocketIOServerOptions {
     identifier: string;
     server: Server;

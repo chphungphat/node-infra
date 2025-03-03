@@ -1,4 +1,4 @@
-import { ApplicationLogger } from './application-logger';
+import { Logger } from './application-logger';
 export declare class LoggerFactory {
-    static getLogger(scopes: string[]): ApplicationLogger;
+    static getLogger(scopes: string[], customLogger?: Logger): Logger;
 }

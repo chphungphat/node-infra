@@ -34,9 +34,22 @@ export declare abstract class SearchableTzCrudRepository<E extends BaseTextSearc
     private renderSearchable;
     mixSearchFields(data: DataObject<E>, options?: Options & {
         where?: Where;
+        ignoreMixSearchFields?: boolean;
     }): Promise<DataObject<E>>;
-    create(data: DataObject<E>, options?: Options): Promise<E>;
-    createAll(data: DataObject<E>[], options?: Options): Promise<E[]>;
-    updateById(id: IdType, data: DataObject<E>, options?: Options): Promise<void>;
-    replaceById(id: IdType, data: DataObject<E>, options?: Options): Promise<void>;
+    create(data: DataObject<E>, options?: Options & {
+        ignoreMixSearchFields?: boolean;
+    }): Promise<E>;
+    createAll(data: DataObject<E>[], options?: Options & {
+        ignoreMixSearchFields?: boolean;
+    }): Promise<E[]>;
+    updateById(id: IdType, data: DataObject<E>, options?: Options & {
+        ignoreMixSearchFields?: boolean;
+    }): Promise<void>;
+    replaceById(id: IdType, data: DataObject<E>, options?: Options & {
+        ignoreMixSearchFields?: boolean;
+    }): Promise<void>;
+    private _syncSearchFields;
+    syncSearchFields(where?: Where<E>, options?: Options & {
+        pagingLimit?: number;
+    }): Promise<void>;
 }

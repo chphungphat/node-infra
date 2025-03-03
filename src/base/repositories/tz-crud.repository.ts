@@ -1,6 +1,6 @@
 import { AnyType, EntityClassType, EntityRelationType, IdType } from '@/common/types';
 import { QueryBuilderHelper } from '@/helpers';
-import { getError } from '@/utilities';
+import { buildBatchUpdateQuery, getError } from '@/utilities';
 import { Count, DataObject, juggler, Options, Where } from '@loopback/repository';
 
 import { BaseTzEntity, BaseUserAuditTzEntity } from '../base.model';
@@ -17,6 +17,7 @@ export abstract class TzCrudRepository<
     super(entityClass, dataSource, scope);
   }
 
+  // ----------------------------------------------------------------------------------------------------
   existsWith(where?: Where<E>, options?: Options): Promise<boolean> {
     return new Promise((resolve, reject) => {
       this.findOne({ where }, options)
@@ -27,7 +28,11 @@ export abstract class TzCrudRepository<
     });
   }
 
-  create(data: DataObject<E>, options?: Options & { authorId?: IdType; ignoreModified?: boolean }): Promise<E> {
+  // ----------------------------------------------------------------------------------------------------
+  override create(
+    data: DataObject<E>,
+    options?: Options & { authorId?: IdType; ignoreModified?: boolean },
+  ): Promise<E> {
     let enriched = this.mixTimestamp(data, {
       newInstance: true,
       ignoreModified: options?.ignoreModified ?? false,
@@ -40,7 +45,11 @@ export abstract class TzCrudRepository<
     return super.create(enriched, options);
   }
 
-  createAll(datum: DataObject<E>[], options?: Options & { authorId?: IdType; ignoreModified?: boolean }): Promise<E[]> {
+  // ----------------------------------------------------------------------------------------------------
+  override createAll(
+    datum: DataObject<E>[],
+    options?: Options & { authorId?: IdType; ignoreModified?: boolean },
+  ): Promise<E[]> {
     const enriched = datum.map(data => {
       const tmp = this.mixTimestamp(data, {
         newInstance: true,
@@ -65,7 +74,8 @@ export abstract class TzCrudRepository<
     return this.create(data, options);
   }
 
-  updateById(
+  // ----------------------------------------------------------------------------------------------------
+  override updateById(
     id: IdType,
     data: DataObject<E>,
     options?: Options & { authorId?: IdType; ignoreModified?: boolean },
@@ -82,6 +92,7 @@ export abstract class TzCrudRepository<
     return super.updateById(id, enriched, options);
   }
 
+  // ----------------------------------------------------------------------------------------------------
   updateWithReturn(
     id: IdType,
     data: DataObject<E>,
@@ -100,7 +111,8 @@ export abstract class TzCrudRepository<
     });
   }
 
-  updateAll(
+  // ----------------------------------------------------------------------------------------------------
+  override updateAll(
     data: DataObject<E>,
     where?: Where<E>,
     options?: Options & { authorId?: IdType; ignoreModified?: boolean },
@@ -117,6 +129,7 @@ export abstract class TzCrudRepository<
     return super.updateAll(enriched, where, options);
   }
 
+  // ----------------------------------------------------------------------------------------------------
   async upsertWith(
     data: DataObject<E>,
     where: Where<E>,
@@ -133,7 +146,8 @@ export abstract class TzCrudRepository<
     return rs;
   }
 
-  replaceById(
+  // ----------------------------------------------------------------------------------------------------
+  override replaceById(
     id: IdType,
     data: DataObject<E>,
     options?: Options & { authorId?: IdType; ignoreModified?: boolean },
@@ -150,6 +164,7 @@ export abstract class TzCrudRepository<
     return super.replaceById(id, enriched, options);
   }
 
+  // ----------------------------------------------------------------------------------------------------
   private _softDelete(
     where: Where<E>,
     options?: Options & {
@@ -170,14 +185,23 @@ export abstract class TzCrudRepository<
       } = options ?? {};
 
       const tableName = this.modelClass.definition.tableName(connectorType);
-      const softDeleteColumnName = this.modelClass.definition.columnName(connectorType, softDeleteField);
+      const softDeleteColumnName = this.modelClass.definition.columnName(
+        connectorType,
+        softDeleteField,
+      );
 
       // Mix Timestamp
-      const mixTimestampColumnName = this.modelClass.definition.columnName(connectorType, 'modifiedAt');
+      const mixTimestampColumnName = this.modelClass.definition.columnName(
+        connectorType,
+        'modifiedAt',
+      );
       const schema = get(this.modelClass.definition.settings, `${connectorType}.schema`, 'public');
 
       // Mix User Audit
-      const mixUserAuditColumnName = this.modelClass.definition.columnName(connectorType, 'modifiedBy');
+      const mixUserAuditColumnName = this.modelClass.definition.columnName(
+        connectorType,
+        'modifiedBy',
+      );
 
       const isSoftDeleteFieldExist = get(this.modelClass.definition.rawProperties, softDeleteField);
       if (!isSoftDeleteFieldExist) {
@@ -249,6 +273,7 @@ export abstract class TzCrudRepository<
     });
   }
 
+  // ----------------------------------------------------------------------------------------------------
   mixTimestamp(
     entity: DataObject<E>,
     options: Options & { newInstance?: boolean; ignoreModified?: boolean } = {
@@ -283,7 +308,11 @@ export abstract class TzCrudRepository<
     return entity;
   }
 
-  _deleteWithReturn(where: Where<E>, options?: Options): Promise<{ count: Count; data: (E & R)[] }> {
+  // ----------------------------------------------------------------------------------------------------
+  _deleteWithReturn(
+    where: Where<E>,
+    options?: Options,
+  ): Promise<{ count: Count; data: (E & R)[] }> {
     return new Promise((resolve, reject) => {
       this.find({ where })
         .then(found => {
@@ -317,5 +346,28 @@ export abstract class TzCrudRepository<
           });
         });
     });
+  }
+
+  // ----------------------------------------------------------------------------------------------------
+  batchUpdate(opts: {
+    data: DataObject<E>[];
+    keys: (keyof E)[];
+    setKeys: (keyof E | { sourceKey: keyof E; targetKey: keyof E })[];
+    whereKeys: (keyof E | { sourceKey: keyof E; targetKey: keyof E })[];
+    whereRaws?: string[];
+    options?: Options;
+  }) {
+    const { data, keys, setKeys, whereKeys, whereRaws = [], options } = opts;
+
+    const query = buildBatchUpdateQuery<E>({
+      tableName: this.entityClass.name,
+      data,
+      keys,
+      setKeys,
+      whereKeys,
+      whereRaws,
+    });
+
+    return this.execute(query, null, options);
   }
 }

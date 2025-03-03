@@ -1,4 +1,4 @@
-import { BaseNetworkRequest } from '@/helpers';
+import { BaseNetworkRequest } from '@/helpers/network';
 import { getError } from '@/utilities';
 import { AuthenticationStrategy, registerAuthenticationStrategy } from '@loopback/authentication';
 import { Context } from '@loopback/core';
@@ -8,7 +8,11 @@ import isEmpty from 'lodash/isEmpty';
 
 class AuthProviderNetworkRequest extends BaseNetworkRequest {}
 
-export const defineOAuth2Strategy = (opts: { name: string; baseURL: string; authPath?: string }) => {
+export const defineOAuth2Strategy = (opts: {
+  name: string;
+  baseURL: string;
+  authPath?: string;
+}) => {
   class Strategy implements AuthenticationStrategy {
     name = opts.name;
 
