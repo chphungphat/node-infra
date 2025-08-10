@@ -2,7 +2,7 @@ import { BaseHelper } from '@/base/base.helper';
 import { getError, int } from '@/utilities';
 import { Cluster, ClusterOptions, Redis } from 'ioredis';
 import isEmpty from 'lodash/isEmpty';
-import zlib from 'zlib';
+import zlib from 'node:zlib';
 
 // -----------------------------------------------------------------------------------------------
 export interface IRedisHelperProps {
@@ -370,9 +370,12 @@ export class DefaultRedisHelper extends BaseHelper {
 
     await Promise.all(
       validTopics.map(topic => {
-        let packet = Buffer.from(JSON.stringify(payload));
+        let packet;
+
         if (useCompress) {
-          packet = zlib.deflateSync(Buffer.from(packet));
+          packet = zlib.deflateSync(Buffer.from(JSON.stringify(payload)));
+        } else {
+          packet = Buffer.from(JSON.stringify(payload));
         }
 
         return this.client.publish(topic, packet);
