@@ -1,6 +1,6 @@
 {
   "name": "@minimaltech/agent-infra",
-  "version": "0.0.1-6",
+  "version": "0.0.1-9",
   "description": "Minimal Technology - AI Agent Infrastructure - MastraAI Framework",
   "keywords": [
     "ai agent",
@@ -87,12 +87,6 @@
     "typescript": "catalog:develop"
   },
   "peerDependencies": {
-    "@mastra/core": "^0.18.0",
-    "@mastra/fastembed": "^0.10.5",
-    "@mastra/memory": "^0.15.2",
-    "@mastra/pg": "^0.16.0",
-    "@mastra/rag": "^1.2.6",
-    "ai": "^5.0.56",
-    "zod": "3.25.76"
+    "@mastra/core": "^0.20.0"
   }
 }
