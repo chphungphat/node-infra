@@ -142,7 +142,7 @@ export class AuthenticateComponent extends BaseComponent {
       DefaultOAuth2ExpressServer.getInstance({
         viewFolder,
         authServiceKey: handler.authServiceKey,
-        injectionGetter: <T>(key: string | BindingKey<T>) => this.application.getSync<T>(key),
+        injectionGetter: this.application.getInjectionGetter(),
       }).getApplicationHandler(),
     );
   }

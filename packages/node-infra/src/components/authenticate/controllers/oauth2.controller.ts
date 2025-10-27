@@ -1,12 +1,10 @@
 import { EnvironmentKeys, IdType, TInjectionGetter } from '@/common';
-import { applicationEnvironment, ApplicationLogger, LoggerFactory } from '@/helpers';
+import { applicationEnvironment } from '@/helpers';
 import { getSchemaObject } from '@/utilities';
 import { authenticate } from '@loopback/authentication';
 import { Context, Getter, inject } from '@loopback/core';
 import {
   api,
-  ExpressRequestHandler,
-  ExpressServer,
   ExpressServerConfig,
   get,
   post,
@@ -19,37 +17,34 @@ import { Request, Response } from '@node-oauth/oauth2-server';
 
 import { OAuth2Service } from '../services';
 
-import { BaseController } from '@/base/controllers';
+import { AbstractExpressRequestHandler, BaseController } from '@/base/controllers';
 import isEmpty from 'lodash/isEmpty';
 import { join } from 'node:path';
 import { Authentication, IAuthenticateOAuth2RestOptions, OAuth2Request } from '../common';
 
 interface IOAuth2ControllerOptions {
   config?: ExpressServerConfig | undefined;
-  parent?: Context;
-  authServiceKey: string;
+  context?: Context;
   injectionGetter: TInjectionGetter;
+  authServiceKey: string;
   viewFolder?: string;
 }
 
 // --------------------------------------------------------------------------------
-export class DefaultOAuth2ExpressServer extends ExpressServer {
+export class DefaultOAuth2ExpressServer extends AbstractExpressRequestHandler {
   private static instance: DefaultOAuth2ExpressServer;
 
   private authServiceKey: string;
-  private injectionGetter: TInjectionGetter;
   private viewFolder?: string;
 
-  private logger: ApplicationLogger;
-
   constructor(opts: IOAuth2ControllerOptions) {
-    super(opts.config, opts.parent);
+    super({
+      ...opts,
+      scope: DefaultOAuth2ExpressServer.name,
+    });
 
     this.authServiceKey = opts.authServiceKey;
-    this.injectionGetter = opts.injectionGetter;
     this.viewFolder = opts.viewFolder;
-
-    this.logger = LoggerFactory.getLogger([DefaultOAuth2ExpressServer.name]);
 
     this.binding();
   }
@@ -61,10 +56,6 @@ export class DefaultOAuth2ExpressServer extends ExpressServer {
     }
 
     return this.instance;
-  }
-
-  getApplicationHandler() {
-    return this.expressApp as ExpressRequestHandler;
   }
 
   binding() {

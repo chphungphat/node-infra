@@ -1,4 +1,3 @@
-import { BaseTzEntity } from '@/base/models';
 import { AnyObject, ITzRepository, OAuth2TokenStatuses, TInjectionGetter } from '@/common';
 import { ApplicationLogger, LoggerFactory } from '@/helpers';
 import { getError, int } from '@/utilities';
@@ -16,6 +15,7 @@ import { OAuth2Client, OAuth2Token } from '../models';
 import { OAuth2ClientRepository, OAuth2TokenRepository } from '../repositories';
 import { JWTTokenService } from '../services';
 
+import { TBaseTzEntity } from '@/base/models';
 import get from 'lodash/get';
 import { Authentication, AuthenticationTokenTypes, IAuthService } from '../common';
 
@@ -174,7 +174,7 @@ export abstract class AbstractOAuth2AuthenticationHandler implements IOAuth2Auth
       });
     }
 
-    const userRepository = this.injectionGetter<ITzRepository<BaseTzEntity>>(
+    const userRepository = this.injectionGetter<ITzRepository<TBaseTzEntity>>(
       'repositories.UserRepository',
     );
     const user = await userRepository.findOne({
@@ -241,8 +241,8 @@ export abstract class AbstractOAuth2AuthenticationHandler implements IOAuth2Auth
       'repositories.OAuth2ClientRepository',
     );
     const oauth2Client = await oauth2ClientRepository.findOne({
-      where: { identifier: clientId },
-      fields: ['id', 'identifier', 'name', 'description', 'userId'],
+      where: { clientId },
+      fields: ['id', 'identifier', 'clientId', 'name', 'description', 'userId'],
     });
     if (!oauth2Client) {
       throw getError({
