@@ -25,12 +25,8 @@ import {
   UpdateResult,
   UserIdentity,
 } from 'react-admin';
-import {
-  Environments,
-  RequestBodyTypes,
-  RequestMethods,
-  RequestTypes,
-} from './constants';
+import { Environments, RequestBodyTypes, RequestMethods, RequestTypes } from './constants';
+import { DefaultFetchNetworkRequestService } from '@/base';
 
 //-----------------------------------------------------------
 export type NumberIdType = number;
@@ -170,6 +166,8 @@ export interface IDataProvider<TResource extends string = string>
     resource: TResource;
     params: ISendParams;
   }) => Promise<ISendResponse<ReturnType>>;
+
+  getNetworkService(): DefaultFetchNetworkRequestService;
 }
 
 export interface IReactAdminAuthProvider {
@@ -207,9 +205,8 @@ export interface II18nProviderOptions {
 export interface IService {}
 
 // ----------------------------------------------------------------------
-export interface ICrudService<
-  E extends { id: IdType; [extra: string | symbol]: any } = any,
-> extends IService {
+export interface ICrudService<E extends { id: IdType; [extra: string | symbol]: any } = any>
+  extends IService {
   find(filter: Filter<E>): Promise<Array<E & EntityRelationType>>;
   findById(id: IdType, filter: Filter<E>): Promise<E & EntityRelationType>;
   findOne(filter: Filter<E>): Promise<(E & EntityRelationType) | null>;

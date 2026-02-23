@@ -24,7 +24,12 @@ import {
 } from '@/base/controllers';
 import isEmpty from 'lodash/isEmpty';
 import { join } from 'node:path';
-import { Authentication, IAuthenticateOAuth2RestOptions, OAuth2Request } from '../common';
+import {
+  Authentication,
+  IAuthenticateOAuth2RestOptions,
+  OAuth2AuthorizationCodeRequest,
+  OAuth2PathRequest,
+} from '../common';
 import { OAuth2Client } from '../models';
 import { OAuth2ClientRepository } from '../repositories';
 
@@ -34,6 +39,7 @@ interface IOAuth2ControllerOptions {
   injectionGetter: TInjectionGetter;
   authServiceKey: string;
   viewFolder?: string;
+  useImplicitGrant?: boolean;
 }
 
 // --------------------------------------------------------------------------------
@@ -42,6 +48,7 @@ export class DefaultOAuth2ExpressServer extends AbstractExpressRequestHandler {
 
   private authServiceKey: string;
   private viewFolder?: string;
+  private useImplicitGrant?: boolean;
 
   constructor(opts: IOAuth2ControllerOptions) {
     super({
@@ -51,6 +58,7 @@ export class DefaultOAuth2ExpressServer extends AbstractExpressRequestHandler {
 
     this.authServiceKey = opts.authServiceKey;
     this.viewFolder = opts.viewFolder;
+    this.useImplicitGrant = opts.useImplicitGrant ?? true;
 
     this.binding();
   }
@@ -81,7 +89,7 @@ export class DefaultOAuth2ExpressServer extends AbstractExpressRequestHandler {
 
     // -----------------------------------------------------------------------------------------------------------------
     this.expressApp.get('/auth', (request, response) => {
-      const { c, r } = request.query;
+      const { c, r, scope } = request.query;
 
       if (!c) {
         response.render('pages/auth', {
@@ -96,6 +104,7 @@ export class DefaultOAuth2ExpressServer extends AbstractExpressRequestHandler {
         action: authAction,
         c: decodeURIComponent(c.toString()),
         r: decodeURIComponent(r?.toString() ?? ''),
+        scope: scope ? decodeURIComponent(scope.toString()) : '',
       };
 
       response.render('pages/auth', {
@@ -106,13 +115,13 @@ export class DefaultOAuth2ExpressServer extends AbstractExpressRequestHandler {
 
     // -----------------------------------------------------------------------------------------------------------------
     this.expressApp.post('/auth', (request, response) => {
-      const { username, password, token, redirectUrl } = request.body;
+      const { username, password, token: clientToken, redirectUrl, scope } = request.body;
 
       const requiredProps = [
         { key: 'username', value: username },
-        { key: 'password', value: username },
-        { key: 'token', value: username },
-        { key: 'redirectUrl', value: username },
+        { key: 'password', value: password },
+        { key: 'token', value: clientToken },
+        { key: 'redirectUrl', value: redirectUrl },
       ];
       for (const prop of requiredProps) {
         if (prop?.value && !isEmpty(prop?.value)) {
@@ -133,7 +142,8 @@ export class DefaultOAuth2ExpressServer extends AbstractExpressRequestHandler {
 
       const oauth2Service = this.injectionGetter<OAuth2Service>('services.OAuth2Service');
 
-      const decryptedClient = oauth2Service.decryptClientToken({ token });
+      const decryptedClient = oauth2Service.decryptClientToken({ token: clientToken });
+
       oauth2Service
         .doOAuth2({
           context: { request, response },
@@ -144,6 +154,7 @@ export class DefaultOAuth2ExpressServer extends AbstractExpressRequestHandler {
             clientId: decryptedClient.clientId,
           },
           redirectUrl,
+          scopes: scope ? scope.split(' ').filter(Boolean) : undefined,
         })
         .then(rs => {
           const { accessToken, accessTokenExpiresAt, client } = rs.oauth2TokenRs;
@@ -157,15 +168,19 @@ export class DefaultOAuth2ExpressServer extends AbstractExpressRequestHandler {
 
           oauth2Service
             .doClientCallback({
-              c: token,
+              clientToken,
               oauth2Token: rs.oauth2TokenRs,
+              useImplicitGrant: this.useImplicitGrant,
             })
             .then(() => {
               const url = new URL(rs.redirectUrl);
-              url.searchParams.append('c', encodeURIComponent(token));
+              url.searchParams.append('c', encodeURIComponent(clientToken));
               url.searchParams.append('clientId', client.clientId);
-              url.searchParams.append('accessToken', accessToken);
+              url.searchParams.append('authorizationCode', rs.oauth2TokenRs.authorizationCode);
               url.searchParams.append('userReference', rs.oauth2TokenRs.user?.id ?? '-1');
+              if (this.useImplicitGrant) {
+                url.searchParams.append('accessToken', accessToken);
+              }
               response.redirect(url.toString());
             })
             .catch(error => {
@@ -217,9 +232,38 @@ export const defineOAuth2Controller = (opts?: IAuthenticateOAuth2RestOptions) =>
     }
 
     // ------------------------------------------------------------------------------
-    @post(tokenPath)
-    generateToken() {
+    @post(tokenPath, {
+      responses: {
+        '200': {
+          description: 'Generate OAuth2 Token',
+          content: {
+            'application/x-www-form-urlencoded': {
+              schema: { type: 'object' },
+            },
+          },
+        },
+      },
+    })
+    generateToken(
+      @requestBody({
+        required: true,
+        content: {
+          'application/x-www-form-urlencoded': {
+            schema: getSchemaObject(OAuth2AuthorizationCodeRequest),
+          },
+        },
+      })
+      payload: OAuth2AuthorizationCodeRequest,
+    ) {
       const { request, response } = this.httpContext;
+      request.body = {
+        client_id: payload.clientId, // eslint-disable-line @typescript-eslint/naming-convention
+        client_secret: payload.clientSecret, // eslint-disable-line @typescript-eslint/naming-convention
+        code: payload.authorizationCode,
+        grant_type: payload.grantType, // eslint-disable-line @typescript-eslint/naming-convention
+        redirect_uri: payload.redirectUrl, // eslint-disable-line @typescript-eslint/naming-convention
+      };
+
       return this.service.generateToken({
         request: new Request(request),
         response: new Response(response),
@@ -243,11 +287,11 @@ export const defineOAuth2Controller = (opts?: IAuthenticateOAuth2RestOptions) =>
         required: true,
         content: {
           'application/json': {
-            schema: getSchemaObject(OAuth2Request),
+            schema: getSchemaObject(OAuth2PathRequest),
           },
         },
       })
-      payload: OAuth2Request,
+      payload: OAuth2PathRequest,
     ) {
       return this.service.getOAuth2RequestPath(payload);
     }
@@ -272,6 +316,26 @@ export class OAuth2ClientController extends _OAuth2ClientController {
   constructor(
     @inject('repositories.OAuth2ClientRepository')
     protected repository: OAuth2ClientRepository,
+  ) {
+    super(repository);
+  }
+}
+
+// --------------------------------------------------------------------------------
+import { OAuth2Scope } from '../models';
+import { OAuth2ScopeRepository } from '../repositories';
+
+const _OAuth2ScopeController = defineCrudController({
+  entity: OAuth2Scope,
+  repository: { name: OAuth2ScopeRepository.name },
+  controller: { basePath: '/oauth2/scopes' },
+});
+
+@api({ basePath: '/oauth2/scopes' })
+export class OAuth2ScopeController extends _OAuth2ScopeController {
+  constructor(
+    @inject('repositories.OAuth2ScopeRepository')
+    protected repository: OAuth2ScopeRepository,
   ) {
     super(repository);
   }

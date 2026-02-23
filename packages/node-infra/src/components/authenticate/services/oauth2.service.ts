@@ -1,6 +1,6 @@
 import { BaseApplication } from '@/base/applications';
 import { EnvironmentKeys } from '@/common';
-import { AES, applicationEnvironment } from '@/helpers';
+import { AES, applicationEnvironment, AxiosNetworkRequest } from '@/helpers';
 import { executePromiseWithLimit, getError } from '@/utilities';
 import { CoreBindings, inject } from '@loopback/core';
 import { RequestContext } from '@loopback/rest';
@@ -13,6 +13,7 @@ import { OAuth2ClientRepository } from '../repositories';
 
 export class OAuth2Service extends BaseService {
   private aes = AES.withAlgorithm('aes-256-cbc');
+  protected networkRequest: AxiosNetworkRequest;
 
   constructor(
     @inject(CoreBindings.APPLICATION_INSTANCE)
@@ -22,6 +23,11 @@ export class OAuth2Service extends BaseService {
     private oauth2ClientRepository: OAuth2ClientRepository,
   ) {
     super({ scope: OAuth2Service.name });
+
+    this.networkRequest = new AxiosNetworkRequest({
+      name: 'OAuth2Request',
+      networkOptions: {},
+    });
   }
 
   // --------------------------------------------------------------------------------
@@ -57,8 +63,10 @@ export class OAuth2Service extends BaseService {
     clientId: string;
     clientSecret: string;
     redirectUrl: string;
+    scope?: string; // (e.g., "user:read:basic user:read:profile:firstName")
   }): Promise<{ requestPath: string }> {
-    const { clientId, clientSecret, redirectUrl } = opts;
+    const { clientId, clientSecret, redirectUrl, scope } = opts;
+    this.logger.debug('[OAuth2 Scopes] Generating request path with scopes: %s', scope);
 
     return new Promise((resolve, reject) => {
       this.oauth2ClientRepository
@@ -98,6 +106,10 @@ export class OAuth2Service extends BaseService {
 
           if (redirectUrl) {
             urlParam.set('r', encodeURIComponent(redirectUrl));
+          }
+
+          if (scope) {
+            urlParam.set('scope', encodeURIComponent(scope));
           }
 
           resolve({
@@ -142,8 +154,9 @@ export class OAuth2Service extends BaseService {
     authServiceKey: string;
     signInRequest: SignInRequest;
     redirectUrl?: string;
+    scopes?: string[]; // Array of hierarchical scopes (e.g., ['user:read:basic', 'user:read:profile:firstName'])
   }) {
-    const { context, authServiceKey, signInRequest, redirectUrl } = opts;
+    const { context, authServiceKey, signInRequest, redirectUrl, scopes } = opts;
 
     const authService = this.application.getSync<IAuthService>(authServiceKey);
 
@@ -152,13 +165,13 @@ export class OAuth2Service extends BaseService {
     if (!tokenValue) {
       throw getError({ message: `[auth] Failed to get token value!` });
     }
-
+    this.logger.debug('[doOAuth2] SignIn successful | Scopes: %s', scopes?.join(' '));
     const authorizationCodeRequest = new Request(context.request);
     authorizationCodeRequest.body = {
       client_id: signInRequest.clientId, // eslint-disable-line @typescript-eslint/naming-convention
       response_type: 'code', // eslint-disable-line @typescript-eslint/naming-convention
       grant_type: 'authorization_code', // eslint-disable-line @typescript-eslint/naming-convention
-      scope: 'profile',
+      scope: scopes && scopes.length > 0 ? scopes.join(' ') : '',
       access_token: tokenValue, // eslint-disable-line @typescript-eslint/naming-convention
       redirect_uri: redirectUrl, // eslint-disable-line @typescript-eslint/naming-convention
     };
@@ -200,9 +213,13 @@ export class OAuth2Service extends BaseService {
   }
 
   // --------------------------------------------------------------------------------
-  async doClientCallback(opts: { c: string; oauth2Token: Token }) {
-    const { c, accessToken, authorizationCode, accessTokenExpiresAt, client, user } =
-      opts.oauth2Token;
+  async doClientCallback(opts: {
+    clientToken: string;
+    oauth2Token: Token;
+    useImplicitGrant: boolean;
+  }) {
+    const { clientToken, oauth2Token, useImplicitGrant } = opts;
+    const { accessToken, authorizationCode, accessTokenExpiresAt, client, user } = oauth2Token;
 
     if (!client) {
       this.logger.error('[doClientCallback] Invalid client | Client: %j', client);
@@ -216,25 +233,32 @@ export class OAuth2Service extends BaseService {
     }
 
     const payload = {
-      c,
-      accessToken,
+      c: clientToken,
       authorizationCode,
       accessTokenExpiresAt,
       provider: client.provider,
-      user,
+      user: Object.assign({}, user),
     };
+    if (useImplicitGrant) {
+      Object.assign(payload, { accessToken });
+    }
+
+    const networkService = this.networkRequest.getNetworkService();
 
     const tasks = callbackUrls.map(callbackUrl => {
       return () => {
         return new Promise((resolve, reject) => {
-          fetch(callbackUrl, {
-            method: 'POST',
-            body: JSON.stringify(payload),
-            headers: { ['content-type']: 'application/x-www-form-urlencoded' },
-          })
+          const body = Object.assign({}, payload);
+          networkService
+            .send({
+              method: 'POST',
+              url: callbackUrl,
+              body,
+              headers: { ['content-type']: 'application/x-www-form-urlencoded' },
+            })
             .then(rs => {
               this.logger.info('[doClientCallback] Successfull to callback | Url: %s', callbackUrl);
-              resolve(rs);
+              resolve(rs.data);
             })
             .catch(error => {
               this.logger.error(

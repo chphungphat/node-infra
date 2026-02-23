@@ -1,6 +1,6 @@
 {
   "name": "@minimaltech/node-infra",
-  "version": "0.5.9",
+  "version": "0.5.10-23",
   "description": "Minimal Technology - NodeJS Infrastructure - Loopback 4 Framework",
   "keywords": [
     "web",
@@ -61,20 +61,20 @@
     "./@lb/repo": {
       "default": "./dist/base/loopback/@lb/repository/index.js",
       "types": "./dist/base/loopback/@lb/repository/index.d.ts"
-    }
+    },
+    "./configs/tsconfig.common.json": "./configs/tsconfig.common.json"
   },
   "engines": {
     "node": ">=18"
   },
   "scripts": {
     "build": "sh ./scripts/build.sh",
-    "build:watch": "lb-tsc --watch",
     "clean": "sh ./scripts/clean.sh",
     "eslint": "eslint --report-unused-disable-directives .",
-    "lint": "pnpm eslint && pnpm prettier:cli",
-    "lint:fix": "pnpm eslint --fix && pnpm prettier:fix",
+    "lint": "bun run eslint && bun run prettier:cli",
+    "lint:fix": "bun run eslint --fix && bun run prettier:fix",
     "prettier:cli": "prettier \"**/*.{js,ts}\" -l",
-    "prettier:fix": "pnpm prettier:cli --write",
+    "prettier:fix": "bun run prettier:cli --write",
     "rebuild": "sh ./scripts/rebuild.sh no-version",
     "rebuild:major": "sh ./scripts/rebuild.sh major",
     "rebuild:minor": "sh ./scripts/rebuild.sh minor",
@@ -83,8 +83,8 @@
     "rebuild:preminor": "sh ./scripts/rebuild.sh preminor",
     "rebuild:prepatch": "sh ./scripts/rebuild.sh prepatch",
     "rebuild:prerelease": "sh ./scripts/rebuild.sh prerelease",
-    "pretest:develop": "pnpm run rebuild",
-    "test:develop": "NODE_ENV=development mocha -r dotenv-flow/config -r source-map-support/register --timeout 60000 --exit dist/__tests__/index.js"
+    "pretest:develop": "bun run rebuild",
+    "test:develop": "NODE_ENV=development node --test -r dotenv-flow/config -r source-map-support/register --timeout 60000 --exit dist/__tests__/index.js"
   },
   "repository": {
     "type": "git",
@@ -100,6 +100,7 @@
     "README.md",
     "LICENSE",
     "dist",
+    "configs",
     "!/**/tests",
     "!/**/dist/tests",
     "!/**/__tests__"
@@ -146,13 +147,19 @@
     "winston-daily-rotate-file": "^5.0.0",
     "winston-transport": "^4.9.0"
   },
+  "peerDependencies": {
+    "nodemailer": "^7.0.10",
+    "mailgun.js": "^12.1.1"
+  },
   "peerDependenciesMeta": {
-    "mocha": {
+    "nodemailer": {
+      "optional": true
+    },
+    "mailgun.js": {
       "optional": true
     }
   },
   "devDependencies": {
-    "@loopback/build": "^12.0.4",
     "@minimaltech/eslint-node": "^0.2.1",
     "@types/express": "4.17.21",
     "@types/jsonwebtoken": "^9.0.10",
@@ -160,6 +167,7 @@
     "@types/mocha": "^10.0.10",
     "@types/multer": "^2.0.0",
     "@types/node": "^24.7.2",
+    "@types/nodemailer": "^7.0.4",
     "eslint": "^9.36.0",
     "prettier": "^3.6.2",
     "source-map-support": "^0.5.21",

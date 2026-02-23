@@ -32,6 +32,8 @@ import cloneDeep from 'lodash/cloneDeep';
 import get from 'lodash/get';
 import { createHasManyPolymorphicRepositoryFactoryFor } from './relations/has-many-polymorphic/factory';
 import { IHasManyPolymorphicDefinition } from './relations/has-many-polymorphic/types';
+import { createHasManyThroughPolymorphicRepositoryFactoryFor } from './relations/has-many-through-polymorphic/factory';
+import { IHasManyThroughPolymorphicDefinition } from './relations/has-many-through-polymorphic/types';
 
 // ----------------------------------------------------------------------------------------------------------------------------------------
 export class WhereBuilder<E extends object = AnyObject> extends BaseWhereBuilder {
@@ -85,10 +87,62 @@ export abstract class DefaultCrudRepository<
     });
   }
 
+  /**
+   * @experimental
+   */
+  createHasManyThroughPolymorphicRepositoryFactoryFor<
+    Target extends BaseEntity,
+    TargetId extends IdType,
+    Through extends BaseEntity,
+    ThroughId extends IdType,
+    ForeignKeyType extends IdType,
+  >(opts: {
+    relationName: string;
+    principalType: string;
+    targetRepositoryGetter: Getter<EntityCrudRepository<Target, TargetId>>;
+    throughRepositoryGetter: Getter<EntityCrudRepository<Through, ThroughId>>;
+  }): HasManyRepositoryFactory<Target, ForeignKeyType> {
+    const { relationName, principalType, targetRepositoryGetter, throughRepositoryGetter } = opts;
+    const relationMetadata = this.entityClass.definition.relations[
+      relationName
+    ] as IHasManyThroughPolymorphicDefinition;
+
+    if (!relationMetadata.polymorphic) {
+      throw getError({
+        message:
+          '[createHasManyThroughPolymorphicRepositoryFactoryFor] polymorphic missing in relation definition!',
+      });
+    }
+
+    if (!relationMetadata.through) {
+      throw getError({
+        message:
+          '[createHasManyThroughPolymorphicRepositoryFactoryFor] through missing in relation definition!',
+      });
+    }
+
+    return createHasManyThroughPolymorphicRepositoryFactoryFor<
+      Target,
+      TargetId,
+      Through,
+      ThroughId,
+      ForeignKeyType
+    >({
+      relationMetadata,
+      principalType,
+      targetRepositoryGetter,
+      throughRepositoryGetter,
+    });
+  }
+
   abstract existsWith(where?: Where<E>, options?: TDBAction): Promise<boolean>;
   abstract createWithReturn(data: DataObject<E>, options?: TDBAction): Promise<E>;
   abstract updateWithReturn(id: IdType, data: DataObject<E>, options?: TDBAction): Promise<E>;
   abstract upsertWith(data: DataObject<E>, where: Where<E>, options?: TDBAction): Promise<E | null>;
+  abstract deleteWithReturn(
+    where: Where<E>,
+    options?: TDBAction,
+  ): Promise<{ count: Count; data: E[] }>;
 }
 
 // ----------------------------------------------------------------------------------------------------------------------------------------
@@ -277,6 +331,16 @@ export abstract class ViewRepository<
     _where: Where<E>,
     _options?: TDBAction,
   ): Promise<E | null> {
+    throw getError({
+      statusCode: 500,
+      message: 'Cannot manipulate entity with view repository!',
+    });
+  }
+
+  override deleteWithReturn(
+    _where: Where<E>,
+    _options?: TDBAction,
+  ): Promise<{ count: Count; data: E[] }> {
     throw getError({
       statusCode: 500,
       message: 'Cannot manipulate entity with view repository!',
